@@ -12,6 +12,7 @@ set(PACKAGE_DEPENDENCIES
   std_srvs
   octomap_ros
   octomap_msgs
+  laser_geometry
   dynamic_reconfigure
   nodelet
 )

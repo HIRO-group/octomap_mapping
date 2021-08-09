@@ -176,8 +176,8 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   // m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 5);
   // m_tfPointCloudSub->registerCallback(boost::bind(&OctomapServer::insertCloudCallback, this, _1));
 
-  m_proximitySensorSub = new message_filters::Subscriber<std_msgs::LaserScan> (m_nh, "proximity_data149", 5);
-  m_tfProximitySensorSub = new tf::MessageFilter<std_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 5);
+  m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data149", 5);
+  m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 5);
   m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
 
   m_octomapBinaryService = m_nh.advertiseService("octomap_binary", &OctomapServer::octomapBinarySrv, this);
@@ -264,7 +264,7 @@ bool OctomapServer::openFile(const std::string& filename){
 
 
 // this is the callback for a single sensor
-void OctomapServer::insertSingleSensorCallback(const std_msgs::LaserScan::ConstPtr& scanPoint){
+void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint){
   ros::WallTime startTime = ros::WallTime::now();
 
   // required info for sensor message:
@@ -272,19 +272,19 @@ void OctomapServer::insertSingleSensorCallback(const std_msgs::LaserScan::ConstP
   // header with frame_id of one skin unit
 
   // create sensor message
-  sensor_msgs::PointCloud2 cloud;
+  sensor_msgs::PointCloud2* cloud;
 
   //
   // ground filtering in base frame
   //
-  m_laserProjection.projectLaser(*scanPoint, cloud);
+  m_laserProjection.projectLaser(*scanPoint, *cloud);
 
   PCLPointCloud pc; // input cloud for filtering and ground-detection
   pcl::fromROSMsg(*cloud, pc);
 
   tf::StampedTransform sensorToWorldTf;
   try {
-    m_tfListener.lookupTransform(m_worldFrameId, cloud_>header.frame_id, cloud_>header.stamp, sensorToWorldTf);
+    m_tfListener.lookupTransform(m_worldFrameId, cloud->header.frame_id, cloud->header.stamp, sensorToWorldTf);
   } catch(tf::TransformException& ex){
     ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
     return;
@@ -311,9 +311,9 @@ void OctomapServer::insertSingleSensorCallback(const std_msgs::LaserScan::ConstP
   if (m_filterGroundPlane){
     tf::StampedTransform sensorToBaseTf, baseToWorldTf;
     try{
-      m_tfListener.waitForTransform(m_baseFrameId, cloud_>header.frame_id, cloud_>header.stamp, ros::Duration(0.2));
-      m_tfListener.lookupTransform(m_baseFrameId, cloud_>header.frame_id, cloud_>header.stamp, sensorToBaseTf);
-      m_tfListener.lookupTransform(m_worldFrameId, m_baseFrameId, cloud_>header.stamp, baseToWorldTf);
+      m_tfListener.waitForTransform(m_baseFrameId, cloud->header.frame_id, cloud->header.stamp, ros::Duration(0.2));
+      m_tfListener.lookupTransform(m_baseFrameId, cloud->header.frame_id, cloud->header.stamp, sensorToBaseTf);
+      m_tfListener.lookupTransform(m_worldFrameId, m_baseFrameId, cloud->header.stamp, baseToWorldTf);
 
 
     }catch(tf::TransformException& ex){
