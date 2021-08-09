@@ -37,6 +37,8 @@
 
 // #include <moveit_msgs/CollisionObject.h>
 // #include <moveit_msgs/CollisionMap.h>
+#include "sensor_msgs/LaserScan.h"
+
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
 #include <dynamic_reconfigure/server.h>
@@ -58,6 +60,7 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <laser_geometry/laser_geometry.h>
 
 #include <tf/transform_listener.h>
 #include <tf/message_filter.h>
@@ -101,6 +104,8 @@ public:
   bool resetSrv(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
   virtual void insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud);
+  virtual void insertSingleSensorCallback(const std_msgs::LaserScan::ConstPtr& scanPoint);
+
   virtual bool openFile(const std::string& filename);
 
 protected:
@@ -217,6 +222,8 @@ protected:
   octomap::KeyRay m_keyRay;  // temp storage for ray casting
   octomap::OcTreeKey m_updateBBXMin;
   octomap::OcTreeKey m_updateBBXMax;
+
+  laser_geometry::LaserProjection m_laserProjection;
 
   double m_maxRange;
   std::string m_worldFrameId; // the map frame
