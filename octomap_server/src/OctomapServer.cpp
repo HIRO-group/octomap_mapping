@@ -264,9 +264,9 @@ bool OctomapServer::openFile(const std::string& filename){
 
 // this is the callback for a single sensor
 void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint){
-  
+
   ros::WallTime startTime = ros::WallTime::now();
-  
+
   // required info for sensor message:
   // 3d points
   // header with frame_id of one skin unit
@@ -285,7 +285,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
   // m_laserProjection.projectLaser(*scanPoint, cloud_, 5.0, laser_geometry::channel_option::Distance);
   // std::cout << cloud_.data[0] << "test" << std::endl;
   // sensor_msgs::PointCloud2 *cloud = &cloud_;
- 
+
   PCLPointCloud pc; // input cloud for filtering and ground-detection
   // pcl::fromROSMsg(*cloud, pc);
 
@@ -320,6 +320,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
 //     }
 // }
 
+  std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237, 0.225, 0.20, 0.27, 0.3};
 
 
 
@@ -331,8 +332,8 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
     ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
     return;
   }
-  
-  // convert sensor to world transform to matrix 
+
+  // convert sensor to world transform to matrix
   Eigen::Matrix4f sensorToWorld;
   pcl_ros::transformAsMatrix(sensorToWorldTf, sensorToWorld);
 
@@ -550,6 +551,28 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   // all other points: free on ray, occupied on endpoint:
   for (PCLPointCloud::const_iterator it = nonground.begin(); it != nonground.end(); ++it){
     point3d point(it->x, it->y, it->z);
+    Eigen::Vector3d point_comp{it->x, it->y, it->z};
+    // Remove sensed points on robot body
+    std::cout << "Point in space not ground: "  << point << std::endl;
+    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237, 0.225, 0.20, 0.27, 0.3};
+    int num_control_points = 8;
+    std::unique_ptr<tf::StampedTransform[]> transform_control_points;
+    std::unique_ptr<Eigen::Vector3d[]> translation_control_points;
+
+    transform_control_points = std::make_unique<tf::StampedTransform[]>(num_control_points);
+    translation_control_points = std::make_unique<Eigen::Vector3d[]>(num_control_points);
+
+    for (int i = 0; i < num_control_points; i++) {
+        m_tfListener.lookupTransform("/world", "/control_point" + std::to_string(i),
+                                 ros::Time(0), transform_control_points[i]);
+        translation_control_points[i] << transform_control_points[i].getOrigin().getX(),
+                                         transform_control_points[i].getOrigin().getY(),
+                                         transform_control_points[i].getOrigin().getZ();
+        if ((point_comp - translation_control_points[i]).norm() < sphere_radiuses[i])
+            return;
+    }
+
+
     // maxrange check
     if ((m_maxRange < 0.0) || ((point - sensorOrigin).norm() <= m_maxRange) ) {
 
