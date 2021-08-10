@@ -297,7 +297,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
     pc.push_back(pcl::PointXYZ(scanPoint->ranges[0], 0, 0));
   #endif
 
-  std::cout << pc.points[0].x << " " << pc.points[0].y << " " << pc.points[0].z << std::endl;
+  // std::cout << pc.points[0].x << " " << pc.points[0].y << " " << pc.points[0].z << std::endl;
 
 //   int sensor_number = std::stoi(scan->header.frame_id.substr(scan->header.frame_id.find_first_of("0123456789"), scan->header.frame_id.length() -1))-startIdx;
 //     try {
@@ -417,7 +417,6 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
 // this is the cloud callback for the point cloud
 void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud){
   ros::WallTime startTime = ros::WallTime::now();
-  std::cout << "I like money" << std::endl;
 
 
   //
@@ -547,7 +546,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     }
   }
 
-  // all other points: free on ray, occupied on endpoint:
+  // all other points: free on ray leading up to the endpoint, occupied on endpoint:
   for (PCLPointCloud::const_iterator it = nonground.begin(); it != nonground.end(); ++it){
     point3d point(it->x, it->y, it->z);
     // maxrange check
@@ -559,6 +558,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
       }
       // occupied endpoint
       OcTreeKey key;
+      // convert a point to an octomap key
       if (m_octree->coordToKeyChecked(point, key)){
         occupied_cells.insert(key);
 
