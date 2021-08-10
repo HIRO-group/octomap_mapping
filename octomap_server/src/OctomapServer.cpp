@@ -402,7 +402,8 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
     pc_nonground.header = pc.header;
   }
 
-
+  // todo -- we will need to implement some kind of decay here over time,
+  // especially for moving obstacles
   insertScan(sensorToWorldTf.getOrigin(), pc_ground, pc_nonground);
 
   double total_elapsed = (ros::WallTime::now() - startTime).toSec();
