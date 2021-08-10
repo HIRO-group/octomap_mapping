@@ -238,10 +238,15 @@ protected:
 
   bool m_latchedTopics;
   bool m_publishFreeSpace;
-
+  double currentKinectStamp = 0;
+  double lastAddedKinectStamp = 0;
   double m_res;
   unsigned m_treeDepth;
   unsigned m_maxTreeDepth;
+
+  PCLPointCloud pc_ground_kinect; // ground points from kinect
+  PCLPointCloud pc_nonground_kinect; // nonground points from kinect
+  tf::Point kinect_sensor_origin; // origin of the kinect measurements
 
   double m_pointcloudMinX;
   double m_pointcloudMaxX;

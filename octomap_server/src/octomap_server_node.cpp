@@ -78,6 +78,9 @@ int main(int argc, char** argv){
   }
 
   try{
+    // while (1) {
+    //   ros::spinOnce();
+    // }
     ros::spin();
   }catch(std::runtime_error& e){
     ROS_ERROR("octomap_server exception: %s", e.what());

@@ -172,12 +172,12 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_mapPub = m_nh.advertise<nav_msgs::OccupancyGrid>("projected_map", 5, m_latchedTopics);
   m_fmarkerPub = m_nh.advertise<visualization_msgs::MarkerArray>("free_cells_vis_array", 1, m_latchedTopics);
 
-  m_pointCloudSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
-  m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 5);
+  m_pointCloudSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 1);
+  m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 1);
   m_tfPointCloudSub->registerCallback(boost::bind(&OctomapServer::insertCloudCallback, this, _1));
-  m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data160", 5);
-  m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 5);
-  m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
+  // m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data160", 1);
+  // m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 1);
+  // m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
 
   m_octomapBinaryService = m_nh.advertiseService("octomap_binary", &OctomapServer::octomapBinarySrv, this);
   m_octomapFullService = m_nh.advertiseService("octomap_full", &OctomapServer::octomapFullSrv, this);
@@ -266,7 +266,7 @@ bool OctomapServer::openFile(const std::string& filename){
 void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint){
 
   ros::WallTime startTime = ros::WallTime::now();
-  // std::cout << "received proximity message from " << scanPoint->header.frame_id << std::endl;
+  std::cout << "received proximity message from " << scanPoint->header.frame_id << std::endl;
   // required info for sensor message:
   // 3d points
   // header with frame_id of one skin unit
@@ -418,7 +418,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
 // this is the cloud callback for the point cloud
 void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud){
   ros::WallTime startTime = ros::WallTime::now();
-
+  std::cout << "received msg" << std::endl;
 
   //
   // ground filtering in base frame
@@ -500,7 +500,11 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
     pc_ground.header = pc.header;
     pc_nonground.header = pc.header;
   }
-
+  pc_ground_kinect = pc_ground;
+  pc_nonground_kinect = pc_nonground;
+  kinect_sensor_origin = sensorToWorldTf.getOrigin();
+  currentKinectStamp = cloud->header.stamp.toSec();
+  // return;
 
   insertScan(sensorToWorldTf.getOrigin(), pc_ground, pc_nonground, false);
 
@@ -508,10 +512,11 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   ROS_DEBUG("Pointcloud insertion in OctomapServer done (%zu+%zu pts (ground/nonground), %f sec)", pc_ground.size(), pc_nonground.size(), total_elapsed);
 
   publishAll(cloud->header.stamp);
-}
+} 
 
 void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCloud& ground, const PCLPointCloud& nonground, bool isProximity){
   point3d sensorOrigin = pointTfToOctomap(sensorOriginTf);
+  point3d kinectSensorOrigin = pointTfToOctomap(sensorOriginTf);
   std::cout<< "is proximity: " << isProximity << std::endl;
   if (!m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMin)
     || !m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMax))
@@ -519,13 +524,26 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     ROS_ERROR_STREAM("Could not generate Key for origin "<<sensorOrigin);
   }
 
+  bool updateKinectData = false;
+
+  if (currentKinectStamp - lastAddedKinectStamp > 2.0){
+    updateKinectData = true;
+    lastAddedKinectStamp = currentKinectStamp;
+
+  }
+  updateKinectData = false;
+
 #ifdef COLOR_OCTOMAP_SERVER
   unsigned char* colors = new unsigned char[3];
 #endif
 
+  // combine point clouds here
+
   // instead of direct scan insertion, compute update to filter ground:
   KeySet free_cells, occupied_cells;
   // insert ground points only as free:
+  ros::WallTime startTime = ros::WallTime::now();
+
   for (PCLPointCloud::const_iterator it = ground.begin(); it != ground.end(); ++it){
     point3d point(it->x, it->y, it->z);
     // maxrange check
@@ -547,6 +565,35 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     }
   }
 
+  double total_elapsed = (ros::WallTime::now() - startTime).toSec();
+  std::cout << total_elapsed << " sec for ground scan insertion" << std::endl;
+
+  if (updateKinectData) {
+    for (PCLPointCloud::const_iterator it = pc_ground_kinect.begin(); it != pc_ground_kinect.end(); ++it){
+    point3d point(it->x, it->y, it->z);
+    // maxrange check
+    if ((m_maxRange > 0.0) && ((point - kinectSensorOrigin).norm() > m_maxRange) ) {
+      point = kinectSensorOrigin + (point - kinectSensorOrigin).normalized() * m_maxRange;
+    }
+
+    // only clear space (ground points)
+    if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
+      free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+    }
+
+    octomap::OcTreeKey endKey;
+    if (m_octree->coordToKeyChecked(point, endKey)){
+      updateMinKey(endKey, m_updateBBXMin);
+      updateMaxKey(endKey, m_updateBBXMax);
+    } else{
+      ROS_ERROR_STREAM("Could not generate Key for endpoint "<<point);
+    }
+  }
+
+  }
+
+  startTime = ros::WallTime::now();
+  
   // all other points: free on ray leading up to the endpoint, occupied on endpoint:
   for (PCLPointCloud::const_iterator it = nonground.begin(); it != nonground.end(); ++it){
     bool skip = false;
@@ -616,18 +663,97 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     }
   }
 
-  // mark free cells only if not seen occupied in this cloud
-  for(KeySet::iterator it = free_cells.begin(), end=free_cells.end(); it!= end; ++it){
-    if (occupied_cells.find(*it) == occupied_cells.end()){
-      m_octree->updateNode(*it, false);
+  total_elapsed = (ros::WallTime::now() - startTime).toSec();
+  std::cout << total_elapsed << " sec for non ground scan insertion" << std::endl;
+
+
+  if (updateKinectData) {
+      for (PCLPointCloud::const_iterator it = pc_nonground_kinect.begin(); it != pc_nonground_kinect.end(); ++it){
+    bool skip = false;
+    point3d point(it->x, it->y, it->z);
+    Eigen::Vector3d point_comp{it->x, it->y, it->z};
+    // Remove sensed points on robot body
+    // std::cout << "Point in space not ground: "  << point << std::endl;
+    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237, 0.225, 0.20, 0.27, 0.3};
+    int num_control_points = 8;
+    std::unique_ptr<tf::StampedTransform[]> transform_control_points;
+    std::unique_ptr<Eigen::Vector3d[]> translation_control_points;
+
+    transform_control_points = std::make_unique<tf::StampedTransform[]>(num_control_points);
+    translation_control_points = std::make_unique<Eigen::Vector3d[]>(num_control_points);
+
+    for (int i = 0; i < num_control_points; i++) {
+        m_tfListener.lookupTransform("/world", "/control_point" + std::to_string(i),
+                                 ros::Time(0), transform_control_points[i]);
+        translation_control_points[i] << transform_control_points[i].getOrigin().getX(),
+                                         transform_control_points[i].getOrigin().getY(),
+                                         transform_control_points[i].getOrigin().getZ();
+        if ((point_comp - translation_control_points[i]).norm() < sphere_radiuses[i])
+            skip = true;
+    }
+
+    if (skip) {
+      continue;
+    }
+
+
+    // maxrange check
+    if ((m_maxRange < 0.0) || ((point - kinectSensorOrigin).norm() <= m_maxRange) ) {
+
+      // free cells
+      if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
+        free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+      }
+      // occupied endpoint
+      OcTreeKey key;
+      // convert a point to an octomap key
+      if (m_octree->coordToKeyChecked(point, key)){
+        occupied_cells.insert(key);
+
+        updateMinKey(key, m_updateBBXMin);
+        updateMaxKey(key, m_updateBBXMax);
+
+#ifdef COLOR_OCTOMAP_SERVER // NB: Only read and interpret color if it's an occupied node
+        m_octree->averageNodeColor(it->x, it->y, it->z, /*r=*/it->r, /*g=*/it->g, /*b=*/it->b);
+#endif
+      }
+    } else {// ray longer than maxrange:;
+      point3d new_end = kinectSensorOrigin + (point - kinectSensorOrigin).normalized() * m_maxRange;
+      if (m_octree->computeRayKeys(kinectSensorOrigin, new_end, m_keyRay)){
+        free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+
+        octomap::OcTreeKey endKey;
+        if (m_octree->coordToKeyChecked(new_end, endKey)){
+          free_cells.insert(endKey);
+          updateMinKey(endKey, m_updateBBXMin);
+          updateMaxKey(endKey, m_updateBBXMax);
+        } else{
+          ROS_ERROR_STREAM("Could not generate Key for endpoint "<<new_end);
+        }
+
+
+      }
     }
   }
+
+
+  }
+
+
+
+  // mark free cells only if not seen occupied in this cloud
+  // for(KeySet::iterator it = free_cells.begin(), end=free_cells.end(); it!= end; ++it){
+  //   if (occupied_cells.find(*it) == occupied_cells.end()){
+  //     m_octree->updateNode(*it, false);
+  //   }
+  // }
 
 
   // now mark all occupied cells:
   for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
     m_octree->updateNode(*it, true);
   }
+
 
   // TODO: eval lazy+updateInner vs. proper insertion
   // non-lazy by default (updateInnerOccupancy() too slow for large maps)
