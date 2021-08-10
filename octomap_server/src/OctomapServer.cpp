@@ -293,7 +293,8 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
     pc.push_back(pcl::PointXYZRGB(0, 0, scanPoint->ranges[0]));
 
   #else
-    pc.push_back(pcl::PointXYZ(0, 0, scanPoint->ranges[0]));
+    // this is the point cloud for the octomap
+    pc.push_back(pcl::PointXYZ(scanPoint->ranges[0], 0, 0));
   #endif
 
   std::cout << pc.points[0].x << " " << pc.points[0].y << " " << pc.points[0].z << std::endl;
