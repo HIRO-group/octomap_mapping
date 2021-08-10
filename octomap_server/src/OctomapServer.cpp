@@ -175,8 +175,7 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   // m_pointCloudSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
   // m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 5);
   // m_tfPointCloudSub->registerCallback(boost::bind(&OctomapServer::insertCloudCallback, this, _1));
-
-  m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data149", 5);
+  m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data160", 5);
   m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 5);
   m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
 
@@ -265,30 +264,73 @@ bool OctomapServer::openFile(const std::string& filename){
 
 // this is the callback for a single sensor
 void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint){
+  
   ros::WallTime startTime = ros::WallTime::now();
-
+  
   // required info for sensor message:
   // 3d points
   // header with frame_id of one skin unit
 
   // create sensor message
-  sensor_msgs::PointCloud2* cloud;
-
+  sensor_msgs::PointCloud2 cloud_;
+  // cloud_.header = scanPoint->header;
+  // cloud_.height = 1;
+  // cloud_.width = scanPoint->ranges.size();
+  // cloud_.data.resize(scanPoint->ranges.size());
+  // cloud_.data[0] = scanPoint->ranges[0];
+  // cloud_.row_step = 1;
   //
   // ground filtering in base frame
   //
-  m_laserProjection.projectLaser(*scanPoint, *cloud);
-
+  // m_laserProjection.projectLaser(*scanPoint, cloud_, 5.0, laser_geometry::channel_option::Distance);
+  // std::cout << cloud_.data[0] << "test" << std::endl;
+  // sensor_msgs::PointCloud2 *cloud = &cloud_;
+ 
   PCLPointCloud pc; // input cloud for filtering and ground-detection
-  pcl::fromROSMsg(*cloud, pc);
+  // pcl::fromROSMsg(*cloud, pc);
+
+  #ifdef COLOR_OCTOMAP_SERVER
+    pc.push_back(pcl::PointXYZRGB(0, 0, scanPoint->ranges[0]));
+
+  #else
+    pc.push_back(pcl::PointXYZ(0, 0, scanPoint->ranges[0]));
+  #endif
+
+  std::cout << pc.points[0].x << " " << pc.points[0].y << " " << pc.points[0].z << std::endl;
+
+//   int sensor_number = std::stoi(scan->header.frame_id.substr(scan->header.frame_id.find_first_of("0123456789"), scan->header.frame_id.length() -1))-startIdx;
+//     try {
+//         listener.lookupTransform("/world", "/proximity_link" + std::to_string(sensor_number+startIdx),
+//                                  ros::Time(0), transform[sensor_number]);
+//         translation1[sensor_number] << transform[sensor_number].getOrigin().getX(),
+//                                        transform[sensor_number].getOrigin().getY(),
+//                                        transform[sensor_number].getOrigin().getZ();
+//         translation2[sensor_number] << scan->ranges[0],
+//                                        0.0,
+//                                        0.0;
+//         rotation[sensor_number].w() = transform[sensor_number].getRotation().getW();
+//         rotation[sensor_number].x() = transform[sensor_number].getRotation().getX();
+//         rotation[sensor_number].y() = transform[sensor_number].getRotation().getY();
+//         rotation[sensor_number].z() = transform[sensor_number].getRotation().getZ();
+//         live_points[sensor_number] = translation1[sensor_number] + (rotation[sensor_number] * translation2[sensor_number]);
+//     } catch (tf::TransformException ex) {
+//         ROS_ERROR("%s", ex.what());
+//         // ros::Duration(1.0).sleep();
+//     }
+// }
+
+
+
+
 
   tf::StampedTransform sensorToWorldTf;
   try {
-    m_tfListener.lookupTransform(m_worldFrameId, cloud->header.frame_id, cloud->header.stamp, sensorToWorldTf);
+    m_tfListener.lookupTransform("/world", scanPoint->header.frame_id, scanPoint->header.stamp, sensorToWorldTf);
   } catch(tf::TransformException& ex){
     ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
     return;
   }
+  
   // convert sensor to world transform to matrix 
   Eigen::Matrix4f sensorToWorld;
   pcl_ros::transformAsMatrix(sensorToWorldTf, sensorToWorld);
@@ -311,9 +353,9 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
   if (m_filterGroundPlane){
     tf::StampedTransform sensorToBaseTf, baseToWorldTf;
     try{
-      m_tfListener.waitForTransform(m_baseFrameId, cloud->header.frame_id, cloud->header.stamp, ros::Duration(0.2));
-      m_tfListener.lookupTransform(m_baseFrameId, cloud->header.frame_id, cloud->header.stamp, sensorToBaseTf);
-      m_tfListener.lookupTransform(m_worldFrameId, m_baseFrameId, cloud->header.stamp, baseToWorldTf);
+      m_tfListener.waitForTransform("/world", scanPoint->header.frame_id, scanPoint->header.stamp, ros::Duration(0.2));
+      m_tfListener.lookupTransform("/world", scanPoint->header.frame_id, scanPoint->header.stamp, sensorToBaseTf);
+      m_tfListener.lookupTransform("/world", "/world", scanPoint->header.stamp, baseToWorldTf);
 
 
     }catch(tf::TransformException& ex){
@@ -365,7 +407,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
   double total_elapsed = (ros::WallTime::now() - startTime).toSec();
   ROS_DEBUG("Pointcloud insertion in OctomapServer done (%zu+%zu pts (ground/nonground), %f sec)", pc_ground.size(), pc_nonground.size(), total_elapsed);
 
-  publishAll(cloud->header.stamp);
+  publishAll(scanPoint->header.stamp);
 }
 
 
@@ -373,6 +415,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
 // this is the cloud callback for the point cloud
 void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud){
   ros::WallTime startTime = ros::WallTime::now();
+  std::cout << "I like money" << std::endl;
 
 
   //
