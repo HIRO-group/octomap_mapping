@@ -235,7 +235,7 @@ protected:
   std_msgs::ColorRGBA m_color;
   std_msgs::ColorRGBA m_colorFree;
   double m_colorFactor;
-
+  int everyNthPointValue = -1;
   bool m_latchedTopics;
   bool m_publishFreeSpace;
   double currentKinectStamp = 0;
