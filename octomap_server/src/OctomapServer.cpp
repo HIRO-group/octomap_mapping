@@ -783,30 +783,9 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
   }
 
-  // std::vector<octomap::OcTreeKey> current_occupied_keys;
-  // // now mark all occupied cells:
-  // for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
-  //   current_occupied_keys.push_back(*it);
-
-  // }
-  // if (updateKinectData) {
-  //   recentOcTreeKeys.push_back(current_occupied_keys);
-  //   // pop the first element if the deque is too long
-  //   std::vector<octomap::OcTreeKey> oldest_vector = recentOcTreeKeys[0];
-  //   if (recentOcTreeKeys.size() > maxDequeSize) {
-  //     recentOcTreeKeys.pop_front();
-  //   }
-  //   for (auto it = begin (oldest_vector); it != end (oldest_vector); ++it) {
-  //     m_octree->updateNode(*it, false);
-
-  //   }
-
-
-  // }
 
   for (auto it = m_octree->begin(), end=m_octree->end(); it!= end; it++) {
-    // size_t v
-    // Eigen::Vector3d point_comp{point.x, point.y, point.z};
+    // decay the occupied nodes over time
     it->addValue(-0.001);
   }
 
