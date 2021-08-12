@@ -15,10 +15,10 @@
         <param name="frame_id" type="string" value="world" />
 
         <!-- maximum range to integrate (x-axis) -->
-        <param name="sensor_model/max_range" value="3.0" />
+        <param name="sensor_model/max_range" value="9.0" />
 
         <!-- data source to integrate (PointCloud2) -->
-        <remap from="cloud_in" to="/pcl_filters/cropbox/output" />
+        <remap from="cloud_in" to="/camera/depth/noisypoints" />
 
     </node>
 </launch>

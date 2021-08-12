@@ -466,7 +466,7 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
 
   PCLPointCloud pc_ground; // segmented ground plane
   PCLPointCloud pc_nonground; // everything else
-
+  // std::cout << m_filterGroundPlane << std::endl;
   if (m_filterGroundPlane){
     tf::StampedTransform sensorToBaseTf, baseToWorldTf;
     try{
@@ -531,7 +531,7 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
 
 void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCloud& ground, const PCLPointCloud& nonground, bool isProximity, bool isInf){
   point3d sensorOrigin = pointTfToOctomap(sensorOriginTf);
-  point3d kinectSensorOrigin = pointTfToOctomap(sensorOriginTf);
+  point3d kinectSensorOrigin = pointTfToOctomap(kinect_sensor_origin);
   // std::cout<< "is proximity: " << isProximity << std::endl;
   if (!m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMin)
     || !m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMax))
@@ -541,7 +541,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
   bool updateKinectData = false;
 
-  if (currentKinectStamp - lastAddedKinectStamp > 2.0){
+  if (currentKinectStamp - lastAddedKinectStamp > 1.0){
     updateKinectData = true;
     lastAddedKinectStamp = currentKinectStamp;
 
@@ -690,6 +690,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   // std::cout << total_elapsed << " sec for non ground scan insertion" << std::endl;
 
   i = 0;
+  int fails = 0;
   everyNthPointValue ++;
   everyNthPointValue = everyNthPointValue % 10;
   if (updateKinectData) {
@@ -729,17 +730,21 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
     // maxrange check
     if ((m_maxRange < 0.0) || ((point - kinectSensorOrigin).norm() <= m_maxRange) ) {
-
       // free cells
+      // std::cout << point << " " << kinectSensorOrigin << std::endl;
+      // std::cout << (point - kinectSensorOrigin).norm() << " distance "<< std::endl;
+      int amt = free_cells.size();
       if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
-      }
+      } 
+      int diff = free_cells.size() - amt;
+      // std::cout << "Diff: " << diff << std::endl;
       // occupied endpoint
       OcTreeKey key;
       // convert a point to an octomap key
       if (m_octree->coordToKeyChecked(point, key)){
         occupied_cells.insert(key);
-
+        // declare before hand
         updateMinKey(key, m_updateBBXMin);
         updateMaxKey(key, m_updateBBXMax);
 
