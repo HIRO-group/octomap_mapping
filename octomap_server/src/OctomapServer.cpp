@@ -293,7 +293,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
   #ifdef COLOR_OCTOMAP_SERVER
     if (isinf(scanPoint->ranges[0])) {
       pc.push_back(pcl::PointXYZRGB(1.0, 0, 0));
-      
+
     } else {
       pc.push_back(pcl::PointXYZRGB(scanPoint->ranges[0], 0, 0));
     }
@@ -302,7 +302,7 @@ void OctomapServer::insertSingleSensorCallback(const sensor_msgs::LaserScan::Con
     if (isinf(scanPoint->ranges[0])) {
       pc.push_back(pcl::PointXYZ(2.0, 0, 0));
       isInf = true;
-      
+
     } else {
       pc.push_back(pcl::PointXYZ(scanPoint->ranges[0], 0, 0));
     }
@@ -527,7 +527,7 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
   ROS_DEBUG("Pointcloud insertion in OctomapServer done (%zu+%zu pts (ground/nonground), %f sec)", pc_ground.size(), pc_nonground.size(), total_elapsed);
 
   publishAll(cloud->header.stamp);
-} 
+}
 
 void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCloud& ground, const PCLPointCloud& nonground, bool isProximity, bool isInf){
   point3d sensorOrigin = pointTfToOctomap(sensorOriginTf);
@@ -613,7 +613,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   }
 
   startTime = ros::WallTime::now();
-  
+
   // all other points: free on ray leading up to the endpoint, occupied on endpoint:
   for (PCLPointCloud::const_iterator it = nonground.begin(); it != nonground.end(); ++it){
     bool skip = false;
@@ -695,7 +695,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   everyNthPointValue = everyNthPointValue % 20;
   if (updateKinectData) {
       for (PCLPointCloud::const_iterator it = pc_nonground_kinect.begin(); it != pc_nonground_kinect.end(); ++it){
-    
+
     bool skip = false;
     i++;
     if (i % 20 != everyNthPointValue) {
@@ -705,7 +705,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     Eigen::Vector3d point_comp{it->x, it->y, it->z};
     // Remove sensed points on robot body
     // std::cout << "Point in space not ground: "  << point << std::endl;
-    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237, 0.225, 0.20, 0.27, 0.3};
+    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237+0.25, 0.225+0.25 , 0.20+0.25, 0.27+0.25, 0.3+0.4};
     int num_control_points = 8;
     std::unique_ptr<tf::StampedTransform[]> transform_control_points;
     std::unique_ptr<Eigen::Vector3d[]> translation_control_points;
@@ -736,7 +736,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
       int amt = free_cells.size();
       if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
-      } 
+      }
       int diff = free_cells.size() - amt;
       // std::cout << "Diff: " << diff << std::endl;
       // occupied endpoint
