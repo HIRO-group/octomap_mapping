@@ -541,7 +541,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
   bool updateKinectData = false;
 
-  if (currentKinectStamp - lastAddedKinectStamp > 0.01){
+  if (currentKinectStamp - lastAddedKinectStamp > 2.0){
     updateKinectData = true;
     lastAddedKinectStamp = currentKinectStamp;
 
@@ -587,7 +587,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   if (updateKinectData) {
     for (PCLPointCloud::const_iterator it = pc_ground_kinect.begin(); it != pc_ground_kinect.end(); ++it){
       i++;
-      if (i % 20 != 0) {
+      if (i % 40 != 0) {
         continue;
       }
       point3d point(it->x, it->y, it->z);
@@ -692,13 +692,13 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   i = 0;
   int fails = 0;
   everyNthPointValue ++;
-  everyNthPointValue = everyNthPointValue % 20;
+  everyNthPointValue = everyNthPointValue % 40;
   if (updateKinectData) {
       for (PCLPointCloud::const_iterator it = pc_nonground_kinect.begin(); it != pc_nonground_kinect.end(); ++it){
 
     bool skip = false;
     i++;
-    if (i % 20 != everyNthPointValue) {
+    if (i % 40 != everyNthPointValue) {
       continue;
     }
     point3d point(it->x, it->y, it->z);
@@ -807,7 +807,7 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
   for (auto it = m_octree->begin(), end=m_octree->end(); it!= end; it++) {
     // size_t v
     // Eigen::Vector3d point_comp{point.x, point.y, point.z};
-    it->addValue(-0.01);
+    it->addValue(-0.001);
   }
 
   
