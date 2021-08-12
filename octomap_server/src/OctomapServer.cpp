@@ -773,7 +773,6 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
 
   }
-
   // std::cout << free_cells.size() << " free cells" << std::endl;
   // mark free cells only if not seen occupied in this cloud
   for(KeySet::iterator it = free_cells.begin(), end=free_cells.end(); it!= end; ++it){
@@ -784,11 +783,55 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
 
   }
 
+  // std::vector<octomap::OcTreeKey> current_occupied_keys;
+  // // now mark all occupied cells:
+  // for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
+  //   current_occupied_keys.push_back(*it);
 
-  // now mark all occupied cells:
+  // }
+  // if (updateKinectData) {
+  //   recentOcTreeKeys.push_back(current_occupied_keys);
+  //   // pop the first element if the deque is too long
+  //   std::vector<octomap::OcTreeKey> oldest_vector = recentOcTreeKeys[0];
+  //   if (recentOcTreeKeys.size() > maxDequeSize) {
+  //     recentOcTreeKeys.pop_front();
+  //   }
+  //   for (auto it = begin (oldest_vector); it != end (oldest_vector); ++it) {
+  //     m_octree->updateNode(*it, false);
+
+  //   }
+
+
+  // }
+
+  for (auto it = m_octree->begin(), end=m_octree->end(); it!= end; it++) {
+    // size_t v
+    // Eigen::Vector3d point_comp{point.x, point.y, point.z};
+    it->addValue(-0.01);
+  }
+
+  
   for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
     m_octree->updateNode(*it, true);
+    // octomap::OcTreeKey::KeyHash hasher;    
+    // size_t x = hasher(*it);
+    // // size_t v
+    // // Eigen::Vector3d point_comp{point.x, point.y, point.z};
+    // keyToOccupied[x] = std::make_tuple(*it, true, ros::WallTime::now().toSec());
+
   }
+
+  // for(std::map<size_t, std::tuple<octomap::OcTreeKey, bool, double>>::iterator iter = keyToOccupied.begin(); iter != keyToOccupied.end(); ++iter)
+  // {
+  //   double diff = ros::WallTime::now().toSec() - std::get<2>(iter->second);
+  //   if (diff > 5.0 && std::get<1>(iter->second) == true) {
+  //     keyToOccupied[iter->first] = std::make_tuple(std::get<0>(iter->second), false, ros::WallTime::now().toSec());
+  //     m_octree->updateNode(std::get<0>(iter->second), false);
+
+  //   }
+  //   //ignore value
+  //   //Value v = iter->second;
+  // }
 
 
   // TODO: eval lazy+updateInner vs. proper insertion

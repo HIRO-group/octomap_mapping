@@ -30,6 +30,10 @@
 #ifndef OCTOMAP_SERVER_OCTOMAPSERVER_H
 #define OCTOMAP_SERVER_OCTOMAPSERVER_H
 
+#include <deque>
+#include <map>
+#include <tuple>
+
 #include <ros/ros.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -243,7 +247,11 @@ protected:
   double m_res;
   unsigned m_treeDepth;
   unsigned m_maxTreeDepth;
-
+  int currentDequeIdx = 0;
+  int maxDequeSize = 5;
+  int dictIndex = 0;
+  std::deque<std::vector<octomap::OcTreeKey>> recentOcTreeKeys;
+  std::map<size_t, std::tuple<octomap::OcTreeKey, bool, double>> keyToOccupied;
   PCLPointCloud pc_ground_kinect; // ground points from kinect
   PCLPointCloud pc_nonground_kinect; // nonground points from kinect
   tf::Point kinect_sensor_origin; // origin of the kinect measurements
