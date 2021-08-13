@@ -32,6 +32,8 @@
   <build_depend>dynamic_reconfigure</build_depend>
   <build_depend>nodelet</build_depend>
   <build_depend>laser_geometry</build_depend>
+  <build_depend>hiro_collision_avoidance</build_depend>
+
 
 
   <exec_depend>roscpp</exec_depend>
@@ -48,5 +50,7 @@
   <exec_depend>dynamic_reconfigure</exec_depend>
   <exec_depend>nodelet</exec_depend>
   <exec_depend>laser_geometry</exec_depend>
+  <exec_depend>hiro_collision_avoidance</exec_depend>
+
 
 </package>

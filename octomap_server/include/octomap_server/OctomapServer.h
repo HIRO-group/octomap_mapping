@@ -42,6 +42,8 @@
 // #include <moveit_msgs/CollisionObject.h>
 // #include <moveit_msgs/CollisionMap.h>
 #include "sensor_msgs/LaserScan.h"
+#include "hiro_collision_avoidance/CombinedProximityData.h"
+
 
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
@@ -107,6 +109,7 @@ public:
   bool clearBBXSrv(BBXSrv::Request& req, BBXSrv::Response& resp);
   bool resetSrv(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
+  virtual void insertCombinedProximityDataCallback(const hiro_collision_avoidance::CombinedProximityData::ConstPtr& combinedPoints);
   virtual void insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud);
   virtual void insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint);
 
@@ -138,6 +141,9 @@ protected:
   void publishBinaryOctoMap(const ros::Time& rostime = ros::Time::now()) const;
   void publishFullOctoMap(const ros::Time& rostime = ros::Time::now()) const;
   virtual void publishAll(const ros::Time& rostime = ros::Time::now());
+
+  virtual void insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan = false);
+
 
   /**
   * @brief update occupancy map with a scan labeled as ground and nonground.
@@ -217,13 +223,19 @@ protected:
   ros::Publisher  m_markerPub, m_binaryMapPub, m_fullMapPub, m_pointCloudPub, m_collisionObjectPub, m_mapPub, m_cmapPub, m_fmapPub, m_fmarkerPub;
   message_filters::Subscriber<sensor_msgs::PointCloud2>* m_pointCloudSub;
   message_filters::Subscriber<sensor_msgs::LaserScan>* m_proximitySensorSub;
+  message_filters::Subscriber<hiro_collision_avoidance::CombinedProximityData>* m_combinedProximitySensorSub;
+
 
   tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfPointCloudSub;
   tf::MessageFilter<sensor_msgs::LaserScan>* m_tfProximitySensorSub;
+  tf::MessageFilter<hiro_collision_avoidance::CombinedProximityData>* m_tfCombinedProximitySensorSub;
+
   ros::ServiceServer m_octomapBinaryService, m_octomapFullService, m_clearBBXService, m_resetService;
   tf::TransformListener m_tfListener;
   boost::recursive_mutex m_config_mutex;
   dynamic_reconfigure::Server<OctomapServerConfig> m_reconfigureServer;
+
+  std::vector<tf::Vector3> sensorToWorldVectors;
 
   OcTreeT* m_octree;
   octomap::KeyRay m_keyRay;  // temp storage for ray casting

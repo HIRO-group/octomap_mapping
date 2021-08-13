@@ -15,6 +15,7 @@ set(PACKAGE_DEPENDENCIES
   laser_geometry
   dynamic_reconfigure
   nodelet
+  hiro_collision_avoidance
 )
 
 find_package(catkin REQUIRED COMPONENTS ${PACKAGE_DEPENDENCIES})
