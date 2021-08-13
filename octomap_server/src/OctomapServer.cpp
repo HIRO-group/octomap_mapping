@@ -271,25 +271,12 @@ bool OctomapServer::openFile(const std::string& filename){
 // this is the callback for the combined proximity sensor data
 void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avoidance::CombinedProximityData::ConstPtr& combinedPoints){
   ros::WallTime startTime = ros::WallTime::now();
-  // std::cout << "received proximity message from " << scanPoint->header.frame_id << std::endl;
   // required info for sensor message:
   // 3d points
   // header with frame_id of one skin unit
   // create sensor message
   sensor_msgs::PointCloud2 cloud_;
 
-  // cloud_.header = scanPoint->header;
-  // cloud_.height = 1;
-  // cloud_.width = scanPoint->ranges.size();
-  // cloud_.data.resize(scanPoint->ranges.size());
-  // cloud_.data[0] = scanPoint->ranges[0];
-  // cloud_.row_step = 1;
-  //
-  // ground filtering in base frame
-  //
-  // m_laserProjection.projectLaser(*scanPoint, cloud_, 5.0, laser_geometry::channel_option::Distance);
-  // std::cout << cloud_.data[0] << "test" << std::endl;
-  // sensor_msgs::PointCloud2 *cloud = &cloud_;
   PCLPointCloud global_pc;
   PCLPointCloud pc; // input cloud for filtering and ground-detection
 
@@ -318,13 +305,12 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
         individual_sensor_cloud.push_back(pcl::PointXYZ(2.0, 0, 0));
       } else {
         isInfVector.push_back(false);
-        individual_sensor_cloud.push_back(pcl::PointXYZ(*it, 0, 0));
-
+        individual_sensor_cloud.push_back(pcl::PointXYZ(combinedPoints->ranges[i], 0, 0));
       }
-
+      std::string frame_id = combinedPoints->frame_ids[i];
       tf::StampedTransform sensorToWorldTf;
       try {
-        m_tfListener.lookupTransform("/world", *it, *it, sensorToWorldTf);
+        m_tfListener.lookupTransform("/world", combinedPoints->frame_ids[i], combinedPoints->header.stamp, sensorToWorldTf);
       } catch(tf::TransformException& ex){
         ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
         return;
@@ -371,8 +357,8 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   
   pc_nonground = global_pc;
   // pc_nonground is empty without ground segmentation
-  pc_ground.header = pc.header;
-  pc_nonground.header = pc.header;
+  pc_ground.header = global_pc.header;
+  pc_nonground.header = global_pc.header;
 
   // todo -- we will need to implement some kind of decay here over time,
   // especially for moving obstacles
@@ -381,7 +367,7 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   double total_elapsed = (ros::WallTime::now() - startTime).toSec();
   ROS_DEBUG("Pointcloud insertion in OctomapServer done (%zu+%zu pts (ground/nonground), %f sec)", pc_ground.size(), pc_nonground.size(), total_elapsed);
 
-  publishAll(scanPoint->header.stamp);
+  publishAll(combinedPoints->header.stamp);
   
 }
 
@@ -654,13 +640,12 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
 
 // insert scan with batched proximity data
 void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan = false) {
-  point3d sensorOrigin = pointTfToOctomap(sensorOriginTf);
   point3d kinectSensorOrigin = pointTfToOctomap(kinect_sensor_origin);
   // std::cout<< "is proximity: " << isProximity << std::endl;
-  if (!m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMin)
-    || !m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMax))
+  if (!m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMin)
+    || !m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMax))
   {
-    ROS_ERROR_STREAM("Could not generate Key for origin "<<sensorOrigin);
+    ROS_ERROR_STREAM("Could not generate Key for origin "<<kinectSensorOrigin);
   }
 
   bool updateKinectData = false;
@@ -675,7 +660,6 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   unsigned char* colors = new unsigned char[3];
 #endif
 
-  // combine point clouds here
 
   // instead of direct scan insertion, compute update to filter ground:
   KeySet free_cells, occupied_cells;
@@ -749,7 +733,12 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     bool skip = false;
     point3d point(it->x, it->y, it->z);
     point3d sensorOrigin = pointTfToOctomap(sensorOrigins[sensor_idx]);
-
+    // std::cout<< "is proximity: " << isProximity << std::endl;
+    if (!m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMin)
+      || !m_octree->coordToKeyChecked(sensorOrigin, m_updateBBXMax))
+    {
+      ROS_ERROR_STREAM("Could not generate Key for origin "<<sensorOrigin);
+    }
     Eigen::Vector3d point_comp{it->x, it->y, it->z};
     // Remove sensed points on robot body
     // std::cout << "Point in space not ground: "  << point << std::endl;

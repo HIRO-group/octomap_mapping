@@ -142,7 +142,7 @@ protected:
   void publishFullOctoMap(const ros::Time& rostime = ros::Time::now()) const;
   virtual void publishAll(const ros::Time& rostime = ros::Time::now());
 
-  virtual void insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan = false);
+  virtual void insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan);
 
 
   /**
