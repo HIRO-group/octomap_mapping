@@ -176,15 +176,17 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 1);
   m_tfPointCloudSub->registerCallback(boost::bind(&OctomapServer::insertCloudCallback, this, _1));
 
-  m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data160", 10);
-  m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 10);
-  m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
+  // m_proximitySensorSub = new message_filters::Subscriber<sensor_msgs::LaserScan> (m_nh, "proximity_data160", 10);
+  // m_tfProximitySensorSub = new tf::MessageFilter<sensor_msgs::LaserScan> (*m_proximitySensorSub, m_tfListener, m_worldFrameId, 10);
+  // m_tfProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertSingleSensorCallback, this, _1));
 
-  m_combinedProximitySensorSub = new message_filters::Subscriber<hiro_collision_avoidance::CombinedProximityData> (m_nh, "proximity_combined", 10);
-  m_tfCombinedProximitySensorSub = new tf::MessageFilter<hiro_collision_avoidance::CombinedProximityData> (*m_combinedProximitySensorSub, m_tfListener, m_worldFrameId, 10);
+  m_combinedProximitySensorSub = new message_filters::Subscriber<hiro_collision_avoidance::CombinedProximityData> (m_nh, "proximity_combined", 1);
+  m_tfCombinedProximitySensorSub = new tf::MessageFilter<hiro_collision_avoidance::CombinedProximityData> (*m_combinedProximitySensorSub, m_tfListener, m_worldFrameId, 1);
+  // m_tfCombinedProximitySensorSub->registerCallback(&OctomapServer::insertCombinedProximityDataCallback, this);
   m_tfCombinedProximitySensorSub->registerCallback(boost::bind(&OctomapServer::insertCombinedProximityDataCallback, this, _1));
 
 
+  // ros::Subscriber sub = m_nh.subscribe("proximity_combined", 1, boost::bind(&OctomapServer::insertCombinedProximityDataCallback, this, _1), this);
   m_octomapBinaryService = m_nh.advertiseService("octomap_binary", &OctomapServer::octomapBinarySrv, this);
   m_octomapFullService = m_nh.advertiseService("octomap_full", &OctomapServer::octomapFullSrv, this);
   m_clearBBXService = m_nh_private.advertiseService("clear_bbx", &OctomapServer::clearBBXSrv, this);
@@ -276,7 +278,6 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   // header with frame_id of one skin unit
   // create sensor message
   sensor_msgs::PointCloud2 cloud_;
-
   PCLPointCloud global_pc;
   PCLPointCloud pc; // input cloud for filtering and ground-detection
 
@@ -307,10 +308,11 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
         isInfVector.push_back(false);
         individual_sensor_cloud.push_back(pcl::PointXYZ(combinedPoints->ranges[i], 0, 0));
       }
+
       std::string frame_id = combinedPoints->frame_ids[i];
       tf::StampedTransform sensorToWorldTf;
       try {
-        m_tfListener.lookupTransform("/world", combinedPoints->frame_ids[i], combinedPoints->header.stamp, sensorToWorldTf);
+        m_tfListener.lookupTransform("/world", combinedPoints->frame_ids[i], ros::Time(0), sensorToWorldTf);
       } catch(tf::TransformException& ex){
         ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
         return;
@@ -327,11 +329,12 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
 
       global_pc.push_back(individual_sensor_cloud.points[0]);
       sensorPositions.push_back(sensorToWorldTf.getOrigin());
+      
     }
-
+  
     
   #endif
-
+  
   
   // set up filter for height range, also removes NANs:
   pcl::PassThrough<PCLPoint> pass_x;
@@ -359,6 +362,8 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   // pc_nonground is empty without ground segmentation
   pc_ground.header = global_pc.header;
   pc_nonground.header = global_pc.header;
+
+  
 
   // todo -- we will need to implement some kind of decay here over time,
   // especially for moving obstacles
@@ -642,6 +647,7 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
 void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan = false) {
   point3d kinectSensorOrigin = pointTfToOctomap(kinect_sensor_origin);
   // std::cout<< "is proximity: " << isProximity << std::endl;
+
   if (!m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMin)
     || !m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMax))
   {
@@ -660,14 +666,15 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   unsigned char* colors = new unsigned char[3];
 #endif
 
-
+  
   // instead of direct scan insertion, compute update to filter ground:
   KeySet free_cells, occupied_cells;
   // insert ground points only as free:
   ros::WallTime startTime = ros::WallTime::now();
-  int sensor_idx = 0;
+  int sensor_idx = -1;
 
   for (PCLPointCloud::const_iterator it = ground.begin(); it != ground.end(); ++it){
+    sensor_idx++;
     point3d point(it->x, it->y, it->z);
     // maxrange check
 
@@ -691,7 +698,6 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     } else{
       ROS_ERROR_STREAM("Could not generate Key for endpoint "<<point);
     }
-    sensor_idx++;
   }
 
   double total_elapsed = (ros::WallTime::now() - startTime).toSec();
@@ -726,10 +732,12 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
   }
 
+  
   startTime = ros::WallTime::now();
-  sensor_idx = 0;
+  sensor_idx = -1;
   // all other points: free on ray leading up to the endpoint, occupied on endpoint:
   for (PCLPointCloud::const_iterator it = nonground.begin(); it != nonground.end(); ++it){
+    sensor_idx++;
     bool skip = false;
     point3d point(it->x, it->y, it->z);
     point3d sensorOrigin = pointTfToOctomap(sensorOrigins[sensor_idx]);
@@ -805,7 +813,6 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
       }
     }
-    sensor_idx++;
   }
 
   total_elapsed = (ros::WallTime::now() - startTime).toSec();
