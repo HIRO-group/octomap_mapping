@@ -312,7 +312,8 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
       std::string frame_id = combinedPoints->frame_ids[i];
       tf::StampedTransform sensorToWorldTf;
       try {
-        m_tfListener.lookupTransform("/world", combinedPoints->frame_ids[i], ros::Time(0), sensorToWorldTf);
+        m_tfListener.waitForTransform("/world", combinedPoints->frame_ids[i], combinedPoints->header.stamp, ros::Duration(1.0));
+        m_tfListener.lookupTransform("/world", combinedPoints->frame_ids[i], combinedPoints->header.stamp, sensorToWorldTf);
       } catch(tf::TransformException& ex){
         ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
         return;
