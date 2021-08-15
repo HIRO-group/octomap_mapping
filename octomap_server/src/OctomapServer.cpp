@@ -646,8 +646,20 @@ void OctomapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr
 
 // insert scan with batched proximity data
 void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins, const PCLPointCloud& ground, const PCLPointCloud& nonground, const std::vector<bool> isInfVector, bool isProximityScan = false) {
+
+  // log odds idea:
+  /*
+  based on the type of sensor:
+  - if it is a kinect, we are more confident about it at a distance
+  - if it is the proximity sensor(s), we are more confident about it at lower distances
+  - formalization:
+  - log_odds(kinect_point) = 1.5d for d <= 0.5m
+                             -0.2d + 0.85 for d > 0.5m
+  - log_odds(proximity_point) = -0.5d + 1
+
+  */
+  
   point3d kinectSensorOrigin = pointTfToOctomap(kinect_sensor_origin);
-  // std::cout<< "is proximity: " << isProximity << std::endl;
 
   if (!m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMin)
     || !m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMax))
@@ -670,6 +682,13 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   
   // instead of direct scan insertion, compute update to filter ground:
   KeySet free_cells, occupied_cells;
+  std::vector<bool> free_cells_is_proximity;
+  std::vector<bool> occupied_cells_is_proximity;
+
+  std::vector<double> free_cells_distances;
+  std::vector<double> occupied_cells_distances;
+
+
   // insert ground points only as free:
   ros::WallTime startTime = ros::WallTime::now();
   int sensor_idx = -1;
@@ -689,6 +708,9 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     // only clear space (ground points)
     if (m_octree->computeRayKeys(sensorOrigin, point, m_keyRay)){
       free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+
+      free_cells_is_proximity.push_back(true);
+      free_cells_distances.push_back((point - sensorOrigin).norm());
     }
 
 
@@ -720,6 +742,8 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       // only clear space (ground points)
       if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+        free_cells_is_proximity.push_back(false);
+        free_cells_distances.push_back((point - kinectSensorOrigin).norm());
       }
 
       octomap::OcTreeKey endKey;
@@ -780,6 +804,8 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       // free cells
       if (m_octree->computeRayKeys(sensorOrigin, point, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+        free_cells_is_proximity.push_back(true);
+        free_cells_distances.push_back((point - sensorOrigin).norm());
       }
       if (isInfVector[sensor_idx]) {
         continue;
@@ -789,6 +815,8 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       // convert a point to an octomap key
       if (m_octree->coordToKeyChecked(point, key)){
         occupied_cells.insert(key);
+        occupied_cells_is_proximity.push_back(true);
+        occupied_cells_distances.push_back((point - sensorOrigin).norm());
 
         updateMinKey(key, m_updateBBXMin);
         updateMaxKey(key, m_updateBBXMax);
@@ -801,10 +829,14 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       point3d new_end = sensorOrigin + (point - sensorOrigin).normalized() * m_maxRange;
       if (m_octree->computeRayKeys(sensorOrigin, new_end, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+        free_cells_is_proximity.push_back(true);
+        free_cells_distances.push_back((point - sensorOrigin).norm());
 
         octomap::OcTreeKey endKey;
         if (m_octree->coordToKeyChecked(new_end, endKey)){
           free_cells.insert(endKey);
+          free_cells_is_proximity.push_back(true);
+          free_cells_distances.push_back((point - sensorOrigin).norm());
           updateMinKey(endKey, m_updateBBXMin);
           updateMaxKey(endKey, m_updateBBXMax);
         } else{
@@ -865,12 +897,16 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       // std::cout << (point - kinectSensorOrigin).norm() << " distance "<< std::endl;
       if (m_octree->computeRayKeys(kinectSensorOrigin, point, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+        free_cells_is_proximity.push_back(false);
+        free_cells_distances.push_back((point - kinectSensorOrigin).norm());
       }
       // occupied endpoint
       OcTreeKey key;
       // convert a point to an octomap key
       if (m_octree->coordToKeyChecked(point, key)){
         occupied_cells.insert(key);
+        occupied_cells_is_proximity.push_back(false);
+        occupied_cells_distances.push_back((point - kinectSensorOrigin).norm());
         // declare before hand
         updateMinKey(key, m_updateBBXMin);
         updateMaxKey(key, m_updateBBXMax);
@@ -883,10 +919,14 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       point3d new_end = kinectSensorOrigin + (point - kinectSensorOrigin).normalized() * m_maxRange;
       if (m_octree->computeRayKeys(kinectSensorOrigin, new_end, m_keyRay)){
         free_cells.insert(m_keyRay.begin(), m_keyRay.end());
+        free_cells_is_proximity.push_back(false);
+        free_cells_distances.push_back((point - kinectSensorOrigin).norm());
 
         octomap::OcTreeKey endKey;
         if (m_octree->coordToKeyChecked(new_end, endKey)){
           free_cells.insert(endKey);
+          free_cells_is_proximity.push_back(false);
+          free_cells_distances.push_back((point - kinectSensorOrigin).norm());
           updateMinKey(endKey, m_updateBBXMin);
           updateMaxKey(endKey, m_updateBBXMax);
         } else{
@@ -920,28 +960,32 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     }
   }
 
-  
+  int occupied_idx = 0;
   for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
-    m_octree->updateNode(*it, true);
-    // octomap::OcTreeKey::KeyHash hasher;    
-    // size_t x = hasher(*it);
-    // // size_t v
-    // // Eigen::Vector3d point_comp{point.x, point.y, point.z};
-    // keyToOccupied[x] = std::make_tuple(*it, true, ros::WallTime::now().toSec());
+    // compute weights
+
+  //   - log_odds(kinect_point) = 1.5d for d <= 0.5m
+  //                            -0.2d + 0.85 for d > 0.5m
+  // - log_odds(proximity_point) = -0.5d + 1
+    float weight = 1;
+    if (occupied_cells_is_proximity[occupied_idx]) {
+      weight = (-0.3 * occupied_cells_distances[occupied_idx]) + 1;
+    } else {
+      double distance = occupied_cells_distances[occupied_idx];
+      if (distance <= 0.5) {
+        weight = 0.6;
+        // weight = (1.5 * distance);
+      } else {
+        weight = (-0.1 * distance) + 0.85;
+        // weight = 0.8;
+      }
+    }
+
+    m_octree->updateNode(*it, weight);
+    // m_octree->updateNode(*it, true);
+    occupied_idx++;
 
   }
-
-  // for(std::map<size_t, std::tuple<octomap::OcTreeKey, bool, double>>::iterator iter = keyToOccupied.begin(); iter != keyToOccupied.end(); ++iter)
-  // {
-  //   double diff = ros::WallTime::now().toSec() - std::get<2>(iter->second);
-  //   if (diff > 5.0 && std::get<1>(iter->second) == true) {
-  //     keyToOccupied[iter->first] = std::make_tuple(std::get<0>(iter->second), false, ros::WallTime::now().toSec());
-  //     m_octree->updateNode(std::get<0>(iter->second), false);
-
-  //   }
-  //   //ignore value
-  //   //Value v = iter->second;
-  // }
 
 
   // TODO: eval lazy+updateInner vs. proper insertion
