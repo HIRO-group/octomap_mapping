@@ -669,7 +669,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
   bool updateKinectData = false;
   // determine if we need to update the kinect data
-  if (currentKinectStamp - lastAddedKinectStamp > 2.0){
+  if (currentKinectStamp - lastAddedKinectStamp > 0.5){
     updateKinectData = true;
     lastAddedKinectStamp = currentKinectStamp;
 
@@ -969,7 +969,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   // - log_odds(proximity_point) = -0.5d + 1
     float weight = 1;
     if (occupied_cells_is_proximity[occupied_idx]) {
-      weight = (-0.25 * occupied_cells_distances[occupied_idx]) + 1;
+      weight = (-0.2 * occupied_cells_distances[occupied_idx]) + 1;
     } else {
       double distance = occupied_cells_distances[occupied_idx];
       if (distance <= 0.5) {
