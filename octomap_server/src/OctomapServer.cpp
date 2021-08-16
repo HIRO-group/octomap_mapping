@@ -172,6 +172,7 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_mapPub = m_nh.advertise<nav_msgs::OccupancyGrid>("projected_map", 5, m_latchedTopics);
   m_fmarkerPub = m_nh.advertise<visualization_msgs::MarkerArray>("free_cells_vis_array", 1, m_latchedTopics);
 
+
   m_pointCloudSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 1);
   m_tfPointCloudSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_pointCloudSub, m_tfListener, m_worldFrameId, 1);
   m_tfPointCloudSub->registerCallback(boost::bind(&OctomapServer::insertCloudCallback, this, _1));
@@ -364,9 +365,10 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   pc_ground.header = global_pc.header;
   pc_nonground.header = global_pc.header;
 
-  
+  // uncomment the below lines to only use kinect data
+  // pc_nonground = pc_ground;
+  // pc_ground.header = global_pc.header;
 
-  // todo -- we will need to implement some kind of decay here over time,
   // especially for moving obstacles
   insertScanBatch(sensorPositions, pc_ground, pc_nonground, isInfVector, true);
 
@@ -669,7 +671,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
   bool updateKinectData = false;
   // determine if we need to update the kinect data
-  if (currentKinectStamp - lastAddedKinectStamp > 0.5){
+  if (currentKinectStamp - lastAddedKinectStamp > 0.1){
     updateKinectData = true;
     lastAddedKinectStamp = currentKinectStamp;
 
