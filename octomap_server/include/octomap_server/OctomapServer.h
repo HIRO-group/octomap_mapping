@@ -260,9 +260,11 @@ protected:
   unsigned m_treeDepth;
   unsigned m_maxTreeDepth;
   int currentDequeIdx = 0;
-  int maxDequeSize = 5;
+  int maxDequeSize = 100;
   int dictIndex = 0;
-  std::deque<std::vector<octomap::OcTreeKey>> recentOcTreeKeys;
+  std::deque<int> recentFreeCellCounts;
+  std::deque<int> recentOccupiedCellCounts;
+
   std::map<size_t, std::tuple<octomap::OcTreeKey, bool, double>> keyToOccupied;
   PCLPointCloud pc_ground_kinect; // ground points from kinect
   PCLPointCloud pc_nonground_kinect; // nonground points from kinect

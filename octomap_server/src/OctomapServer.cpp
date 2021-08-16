@@ -367,7 +367,7 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
 
   // uncomment the below lines to only use kinect data
   // pc_nonground = pc_ground;
-  // pc_ground.header = global_pc.header;
+  // pc_nonground.header = global_pc.header;
 
   // especially for moving obstacles
   insertScanBatch(sensorPositions, pc_ground, pc_nonground, isInfVector, true);
@@ -677,6 +677,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
   }
 
+
 #ifdef COLOR_OCTOMAP_SERVER
   unsigned char* colors = new unsigned char[3];
 #endif
@@ -955,10 +956,18 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   }
 
 
+  int num_free_cells = 0;
+  int num_occupied_cells = 0;
+
   for (auto it = m_octree->begin(), end=m_octree->end(); it!= end; it++) {
     // decay the occupied nodes over time
     if (it->getOccupancy() > 0.5) {
-      it->addValue(-0.002);
+      it->addValue(-0.001);
+    }
+    if (m_octree->isNodeOccupied(*it)) {
+      num_occupied_cells++;
+    } else {
+      num_free_cells++;
     }
   }
 
@@ -983,13 +992,42 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       }
     }
 
-    m_octree->updateNode(*it, weight);
+    octomap::point3d point = m_octree->keyToCoord(*it);
+    float z = point.z();
+    if (z > 0.07) {
+      m_octree->updateNode(*it, weight);
+    }
     // m_octree->updateNode(*it, true);
     occupied_idx++;
 
   }
 
+  
+  recentFreeCellCounts.push_back(num_free_cells);
+  recentOccupiedCellCounts.push_back(num_occupied_cells);
+  if (recentFreeCellCounts.size() > maxDequeSize) {
+    recentFreeCellCounts.pop_front();
+  }
 
+  if (recentOccupiedCellCounts.size() > maxDequeSize) {
+    recentOccupiedCellCounts.pop_front();
+  }
+  double mean = 0;
+  for (auto it = recentFreeCellCounts.begin(); it != recentFreeCellCounts.end(); ++it) {
+    mean += *it;
+  }
+  double freeCellsMean = mean / recentFreeCellCounts.size();
+
+  mean = 0;
+  for (auto it = recentOccupiedCellCounts.begin(); it != recentOccupiedCellCounts.end(); ++it) {
+    mean += *it;
+  }
+
+  double occupiedCellsMean = mean / recentOccupiedCellCounts.size();
+
+
+
+  std::cout << "occupied cells mean " << occupiedCellsMean << " free cells mean " << freeCellsMean << std::endl;
   // TODO: eval lazy+updateInner vs. proper insertion
   // non-lazy by default (updateInnerOccupancy() too slow for large maps)
   //m_octree->updateInnerOccupancy();
