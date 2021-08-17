@@ -307,7 +307,11 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
         individual_sensor_cloud.push_back(pcl::PointXYZ(2.0, 0, 0));
       } else {
         isInfVector.push_back(false);
-        individual_sensor_cloud.push_back(pcl::PointXYZ(combinedPoints->ranges[i], 0, 0));
+        if (combinedPoints->ranges[i] > 2.0) {
+          individual_sensor_cloud.push_back(pcl::PointXYZ(2.0, 0, 0));
+        } else {
+          individual_sensor_cloud.push_back(pcl::PointXYZ(combinedPoints->ranges[i], 0, 0));
+        }
       }
 
       std::string frame_id = combinedPoints->frame_ids[i];
