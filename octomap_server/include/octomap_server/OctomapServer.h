@@ -239,7 +239,7 @@ protected:
   std::vector<tf::Vector3> sensorToWorldVectors;
 
   OcTreeT* m_octree;
-  std::map<unsigned, bool> m_key_to_is_proximity;
+  std::map<size_t, std::tuple<octomap::OcTreeKey, bool>> m_key_to_is_proximity;
   octomap::KeyRay m_keyRay;  // temp storage for ray casting
   octomap::OcTreeKey m_updateBBXMin;
   octomap::OcTreeKey m_updateBBXMax;
