@@ -996,12 +996,13 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
       }
     } else {
       double distance = occupied_cells_distances[occupied_idx];
+      std::cout << distance << std::endl;
       if (distance <= 0.5) {
         weight = 0;
         // weight = (1.5 * distance);
       } else {
         weight = (-0.2 * distance) + 1;
-        // weight = 0.8;
+        weight = 0.8;
       }
     }
 
@@ -1009,17 +1010,18 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     float z = point.z();
     if (z > 0.07) {
       OcTreeKey key = *it;
-      unsigned idx = key.getIndexKey();
-      // octomap::OcTreeKey::KeyHash hasher;
-      // size_t x = hasher(*it);
+      // unsigned idx = key.getIndexKey();
+      octomap::OcTreeKey::KeyHash hasher;
+      size_t x = hasher(*it);
+      
 
-      std::cout << "Add Idx: " << idx << std::endl;
+      // std::cout << "Add Idx: " << idx << std::endl;
       if(occupied_cells_is_proximity[occupied_idx]){
-        m_key_to_is_proximity[idx] = true;
+        m_key_to_is_proximity[x] = true;
 
-      }else{
+      } else{
         // m_map_key_to_sensor[*it] = 1;
-        m_key_to_is_proximity[idx] = false;
+        m_key_to_is_proximity[x] = false;
 
       }
       m_octree->updateNode(*it, weight);
@@ -1501,15 +1503,19 @@ void OctomapServer::publishAll(const ros::Time& rostime){
             m_octree->getMetricMin(minX, minY, minZ);
             m_octree->getMetricMax(maxX, maxY, maxZ);
             // std::cout << "IDX:::" << mapIdx(it.getIndexKey()) << std::endl;
-            if (m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second){
-              std::cout << " is what: " << m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second << std::endl;
-            }
+            // if (m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second){
+            //   std::cout << " is what: " << m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second << std::endl;
+            // }
 
             // unsigned idx = mapIdx(it.getIndexKey());
             // std::pair<std::map<unsigned,bool>::iterator,bool> ret;
             // bool is_proximity = m_key_to_is_proximity.find(idx)->second;
             // std::cout << "IS Proximity: " << is_proximity << std::endl;
-            if(m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second){
+            auto key = it.getKey();
+
+            octomap::OcTreeKey::KeyHash hasher;
+            size_t x = hasher(key);
+            if(m_key_to_is_proximity[x]){
               h = (1.0 - std::min(std::max((minZ-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;
             }else{
               h = (1.0 - std::min(std::max((maxZ-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;;
