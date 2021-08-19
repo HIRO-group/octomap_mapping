@@ -28,9 +28,11 @@
  */
 
 #include <octomap_server/OctomapServer.h>
+#include <map>
 
 using namespace octomap;
 using octomap_msgs::Octomap;
+
 
 bool is_equal (double a, double b, double epsilon = 1.0e-7)
 {
@@ -71,6 +73,7 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_incrementalUpdate(false),
   m_initConfig(true)
 {
+
   double probHit, probMiss, thresMin, thresMax;
 
   m_nh_private.param("frame_id", m_worldFrameId, m_worldFrameId);
@@ -78,6 +81,7 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_nh_private.param("height_map", m_useHeightMap, m_useHeightMap);
   m_nh_private.param("colored_map", m_useColoredMap, m_useColoredMap);
   m_nh_private.param("color_factor", m_colorFactor, m_colorFactor);
+
 
   m_nh_private.param("pointcloud_min_x", m_pointcloudMinX,m_pointcloudMinX);
   m_nh_private.param("pointcloud_max_x", m_pointcloudMaxX,m_pointcloudMaxX);
@@ -156,6 +160,8 @@ OctomapServer::OctomapServer(const ros::NodeHandle private_nh_, const ros::NodeH
   m_colorFree.g = g;
   m_colorFree.b = b;
   m_colorFree.a = a;
+
+
 
   m_nh_private.param("publish_free_space", m_publishFreeSpace, m_publishFreeSpace);
 
@@ -335,13 +341,13 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
 
       global_pc.push_back(individual_sensor_cloud.points[0]);
       sensorPositions.push_back(sensorToWorldTf.getOrigin());
-      
+
     }
-  
-    
+
+
   #endif
-  
-  
+
+
   // set up filter for height range, also removes NANs:
   pcl::PassThrough<PCLPoint> pass_x;
   pass_x.setFilterFieldName("x");
@@ -363,7 +369,7 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
 
   PCLPointCloud pc_ground; // segmented ground plane
   PCLPointCloud pc_nonground; // everything else
-  
+
   pc_nonground = global_pc;
   // pc_nonground is empty without ground segmentation
   pc_ground.header = global_pc.header;
@@ -380,7 +386,7 @@ void OctomapServer::insertCombinedProximityDataCallback(const hiro_collision_avo
   ROS_DEBUG("Pointcloud insertion in OctomapServer done (%zu+%zu pts (ground/nonground), %f sec)", pc_ground.size(), pc_nonground.size(), total_elapsed);
 
   publishAll(combinedPoints->header.stamp);
-  
+
 }
 
 
@@ -664,7 +670,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   - log_odds(proximity_point) = -0.5d + 1
 
   */
-  
+
   point3d kinectSensorOrigin = pointTfToOctomap(kinect_sensor_origin);
 
   if (!m_octree->coordToKeyChecked(kinectSensorOrigin, m_updateBBXMin)
@@ -686,7 +692,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
   unsigned char* colors = new unsigned char[3];
 #endif
 
-  
+
   // instead of direct scan insertion, compute update to filter ground:
   KeySet free_cells, occupied_cells;
   std::vector<bool> free_cells_is_proximity;
@@ -764,7 +770,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
   }
 
-  
+
   startTime = ros::WallTime::now();
   sensor_idx = -1;
   // all other points: free on ray leading up to the endpoint, occupied on endpoint:
@@ -782,7 +788,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     Eigen::Vector3d point_comp{it->x, it->y, it->z};
     // Remove sensed points on robot body
     // std::cout << "Point in space not ground: "  << point << std::endl;
-    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237, 0.225, 0.20, 0.27, 0.3};
+    std::vector<float> sphere_radiuses{0.23+0.2, 0.24+0.2, 0.2+0.2, 0.237+0.2, 0.225+0.2, 0.20+0.2, 0.27+0.2, 0.3+0.2};
     int num_control_points = 8;
     std::unique_ptr<tf::StampedTransform[]> transform_control_points;
     std::unique_ptr<Eigen::Vector3d[]> translation_control_points;
@@ -874,7 +880,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     Eigen::Vector3d point_comp{it->x, it->y, it->z};
     // Remove sensed points on robot body
     // std::cout << "Point in space not ground: "  << point << std::endl;
-    std::vector<float> sphere_radiuses{0.23, 0.24, 0.2, 0.237+0.25, 0.225+0.25 , 0.20+0.25, 0.27+0.25, 0.3+0.4};
+    std::vector<float> sphere_radiuses{0.23+0.2, 0.24+0.2, 0.2+0.2, 0.237+0.35, 0.225+0.35 , 0.20+0.35, 0.27+0.35, 0.3+0.3};
     int num_control_points = 8;
     std::unique_ptr<tf::StampedTransform[]> transform_control_points;
     std::unique_ptr<Eigen::Vector3d[]> translation_control_points;
@@ -947,7 +953,7 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
 
 
   }
-  
+
 
   // std::cout << free_cells.size() << " free cells" << std::endl;
   // mark free cells only if not seen occupied in this cloud
@@ -999,14 +1005,26 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     octomap::point3d point = m_octree->keyToCoord(*it);
     float z = point.z();
     if (z > 0.07) {
+      OcTreeKey key = *it;
+      // unsigned idx = key.getIndexKey();
+
+      std::cout << "Add Idx: " << idx << std::endl;
+      if(occupied_cells_is_proximity[occupied_idx]){
+        m_key_to_is_proximity[idx] = true;
+
+      }else{
+        // m_map_key_to_sensor[*it] = 1;
+        m_key_to_is_proximity[idx] = false;
+
+      }
       m_octree->updateNode(*it, weight);
     }
-    // m_octree->updateNode(*it, true);
     occupied_idx++;
+    m_octree->updateNode(*it, false);
 
   }
 
-  
+
   recentFreeCellCounts.push_back(num_free_cells);
   recentOccupiedCellCounts.push_back(num_occupied_cells);
   if (recentFreeCellCounts.size() > maxDequeSize) {
@@ -1327,10 +1345,10 @@ void OctomapServer::insertScan(const tf::Point& sensorOriginTf, const PCLPointCl
     }
   }
 
-  
+
   for (KeySet::iterator it = occupied_cells.begin(), end=occupied_cells.end(); it!= end; it++) {
     m_octree->updateNode(*it, true);
-    // octomap::OcTreeKey::KeyHash hasher;    
+    // octomap::OcTreeKey::KeyHash hasher;
     // size_t x = hasher(*it);
     // // size_t v
     // // Eigen::Vector3d point_comp{point.x, point.y, point.z};
@@ -1425,6 +1443,7 @@ void OctomapServer::publishAll(const ros::Time& rostime){
   handlePreNodeTraversal(rostime);
 
   // now, traverse all leafs in the tree:
+  int current_tree_node_idx = 0;
   for (OcTreeT::iterator it = m_octree->begin(m_maxTreeDepth),
       end = m_octree->end(); it != end; ++it)
   {
@@ -1471,12 +1490,26 @@ void OctomapServer::publishAll(const ros::Time& rostime){
           cubeCenter.z = z;
 
           occupiedNodesVis.markers[idx].points.push_back(cubeCenter);
+          double h = 0;
           if (m_useHeightMap){
             double minX, minY, minZ, maxX, maxY, maxZ;
             m_octree->getMetricMin(minX, minY, minZ);
             m_octree->getMetricMax(maxX, maxY, maxZ);
+            // std::cout << "IDX:::" << mapIdx(it.getIndexKey()) << std::endl;
+            if (m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second){
+              std::cout << " is what: " << m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second << std::endl;
+            }
 
-            double h = (1.0 - std::min(std::max((cubeCenter.z-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;
+            // unsigned idx = mapIdx(it.getIndexKey());
+            // std::pair<std::map<unsigned,bool>::iterator,bool> ret;
+            // bool is_proximity = m_key_to_is_proximity.find(idx)->second;
+            // std::cout << "IS Proximity: " << is_proximity << std::endl;
+            if(m_key_to_is_proximity.find(mapIdx(it.getIndexKey()))->second){
+              h = (1.0 - std::min(std::max((minZ-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;
+            }else{
+              h = (1.0 - std::min(std::max((maxZ-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;;
+            }
+            //(1.0 - std::min(std::max((cubeCenter.z-minZ)/ (maxZ - minZ), 0.0), 1.0)) *m_colorFactor;
             occupiedNodesVis.markers[idx].colors.push_back(heightMapColor(h));
           }
 

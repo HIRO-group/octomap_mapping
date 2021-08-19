@@ -109,6 +109,7 @@ public:
   bool clearBBXSrv(BBXSrv::Request& req, BBXSrv::Response& resp);
   bool resetSrv(std_srvs::Empty::Request& req, std_srvs::Empty::Response& resp);
 
+
   virtual void insertCombinedProximityDataCallback(const hiro_collision_avoidance::CombinedProximityData::ConstPtr& combinedPoints);
   virtual void insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud);
   virtual void insertSingleSensorCallback(const sensor_msgs::LaserScan::ConstPtr& scanPoint);
@@ -238,6 +239,7 @@ protected:
   std::vector<tf::Vector3> sensorToWorldVectors;
 
   OcTreeT* m_octree;
+  std::map<unsigned, bool> m_key_to_is_proximity;
   octomap::KeyRay m_keyRay;  // temp storage for ray casting
   octomap::OcTreeKey m_updateBBXMin;
   octomap::OcTreeKey m_updateBBXMax;
