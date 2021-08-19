@@ -991,10 +991,13 @@ void OctomapServer::insertScanBatch(const std::vector<tf::Point>& sensorOrigins,
     float weight = 1;
     if (occupied_cells_is_proximity[occupied_idx]) {
       weight = (-0.15 * occupied_cells_distances[occupied_idx]) + 1;
+      if (occupied_cells_distances[occupied_idx] < 0.04) {
+        weight = 0;
+      }
     } else {
       double distance = occupied_cells_distances[occupied_idx];
       if (distance <= 0.5) {
-        weight = 0.6 + (0.6 * distance);
+        weight = 0;
         // weight = (1.5 * distance);
       } else {
         weight = (-0.2 * distance) + 1;
