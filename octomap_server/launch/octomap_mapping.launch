@@ -9,7 +9,7 @@
 <launch>
     <node pkg="octomap_server" type="octomap_server_node" name="octomap_server" output="screen">
         <!-- Changes the size of the cubes (resolution of the 3D occupancy map cubes -->
-        <param name="resolution" value="0.06" />
+        <param name="resolution" value="0.04" />
 
         <!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
         <param name="frame_id" type="string" value="world" />
